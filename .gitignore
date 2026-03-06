@@ -1,0 +1,9 @@
+data/
+__pycache__/
+*.pyc
+*.png
+*.gif
+*.egg-info/
+dist/
+build/
+.eggs/

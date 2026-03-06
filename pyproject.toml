@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "prompt-mechinterp"
+version = "0.1.0"
+description = "Mechanistic interpretability toolkit for LLM attention analysis"
+requires-python = ">=3.10"
+dependencies = ["numpy", "Pillow"]
+
+[project.optional-dependencies]
+gpu = ["torch", "transformers", "accelerate", "safetensors", "huggingface_hub"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prompt_mechinterp"]
