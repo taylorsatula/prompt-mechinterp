@@ -158,62 +158,55 @@ def build_chat_tokens(
 ) -> Tuple[List[int], Dict[str, Tuple[int, int]]]:
     """Build token sequence using the model's chat template with piece boundaries.
 
-    Uses piecewise tokenization: tokenize each chat template piece independently,
-    concatenate, and validate against apply_chat_template() output.
-
-    Works with any chat template (ChatML, Llama, Mistral, etc.) by detecting
-    the template structure from the tokenizer.
+    Handles models that don't support system role (e.g. Gemma) by merging
+    system content into the user message. Uses char-level search in decoded
+    text + cumulative decode mapping for robust piece boundary detection
+    across all chat template formats (ChatML, Llama, Mistral, Gemma, etc.).
     """
-    # Get the full reference token sequence via apply_chat_template
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},
         {"role": "assistant", "content": response},
     ]
 
-    ref_result = tokenizer.apply_chat_template(
-        messages,
-        tokenize=True,
-        add_generation_prompt=False,
-    )
-    if hasattr(ref_result, "keys"):
-        reference_ids = ref_result["input_ids"]
-        if isinstance(reference_ids[0], list):
-            reference_ids = reference_ids[0]
-    else:
-        reference_ids = list(ref_result)
+    try:
+        reference_ids = _apply_template(tokenizer, messages)
+    except Exception as e:
+        if "system" in str(e).lower():
+            print("  Model does not support system role — merging into user message")
+            messages = [
+                {"role": "user", "content": system_prompt + "\n" + user_message},
+                {"role": "assistant", "content": response},
+            ]
+            reference_ids = _apply_template(tokenizer, messages)
+        else:
+            raise
 
-    # Tokenize content pieces independently
-    sys_tokens = tokenizer.encode(system_prompt, add_special_tokens=False)
-    usr_tokens = tokenizer.encode(user_message, add_special_tokens=False)
-    resp_tokens = tokenizer.encode(response, add_special_tokens=False)
+    # Decode full sequence for content search. Using decode() on the full
+    # sequence (not individual tokens) handles SentencePiece leading-space
+    # markers correctly, unlike per-token decode + concatenation.
+    full_decoded = tokenizer.decode(reference_ids, skip_special_tokens=False)
 
-    # Find content pieces in the reference sequence via subsequence matching
+    # Find content pieces in decoded text via string search
     boundaries: Dict[str, Tuple[int, int]] = {}
+    search_from = 0
 
-    sys_start = _find_subsequence(reference_ids, sys_tokens, 0)
-    if sys_start >= 0:
-        boundaries["system_prompt"] = (sys_start, sys_start + len(sys_tokens))
-        search_after_sys = sys_start + len(sys_tokens)
-    else:
-        print("WARNING: Could not locate system_prompt tokens in reference sequence")
-        search_after_sys = 0
+    for piece_name, piece_text in [
+        ("system_prompt", system_prompt),
+        ("user_message", user_message),
+        ("response", response),
+    ]:
+        char_pos = full_decoded.find(piece_text, search_from)
+        if char_pos >= 0:
+            char_end = char_pos + len(piece_text)
+            tok_s = _char_to_token_bisect(tokenizer, reference_ids, char_pos)
+            tok_e = _char_to_token_bisect(tokenizer, reference_ids, char_end - 1) + 1
+            boundaries[piece_name] = (tok_s, tok_e)
+            search_from = char_end
+        else:
+            print(f"WARNING: Could not locate {piece_name} in decoded text")
 
-    usr_start = _find_subsequence(reference_ids, usr_tokens, search_after_sys)
-    if usr_start >= 0:
-        boundaries["user_message"] = (usr_start, usr_start + len(usr_tokens))
-        search_after_usr = usr_start + len(usr_tokens)
-    else:
-        print("WARNING: Could not locate user_message tokens in reference sequence")
-        search_after_usr = search_after_sys
-
-    resp_start = _find_subsequence(reference_ids, resp_tokens, search_after_usr)
-    if resp_start >= 0:
-        boundaries["response"] = (resp_start, resp_start + len(resp_tokens))
-    else:
-        print("WARNING: Could not locate response tokens in reference sequence")
-
-    # Identify chat template tokens (everything not in content pieces)
+    # chat_template = everything not in content pieces
     content_indices = set()
     for start, end in boundaries.values():
         content_indices.update(range(start, end))
@@ -225,15 +218,44 @@ def build_chat_tokens(
     return list(reference_ids), boundaries
 
 
-def _find_subsequence(haystack: List[int], needle: List[int], search_start: int = 0) -> int:
-    """Find needle as contiguous subsequence in haystack. Returns start index or -1."""
-    if not needle:
-        return -1
-    n_len = len(needle)
-    for i in range(search_start, len(haystack) - n_len + 1):
-        if haystack[i:i + n_len] == needle:
-            return i
-    return -1
+def _apply_template(tokenizer, messages: list) -> List[int]:
+    """Apply chat template and extract token IDs."""
+    ref_result = tokenizer.apply_chat_template(
+        messages, tokenize=True, add_generation_prompt=False,
+    )
+    if hasattr(ref_result, "keys"):
+        reference_ids = ref_result["input_ids"]
+        # Handle nested lists (batched output) or Encoding objects
+        if isinstance(reference_ids, list) and reference_ids and isinstance(reference_ids[0], list):
+            reference_ids = reference_ids[0]
+        elif not isinstance(reference_ids, list):
+            reference_ids = list(reference_ids)
+    else:
+        reference_ids = list(ref_result)
+    # Ensure plain list of ints
+    if reference_ids and not isinstance(reference_ids[0], int):
+        reference_ids = [int(x) for x in reference_ids]
+    return reference_ids
+
+
+def _char_to_token_bisect(
+    tokenizer, token_ids: List[int], target_char: int
+) -> int:
+    """Binary search for the token index containing target_char in decoded text.
+
+    Uses progressive prefix decoding: decode(token_ids[:n]) gives the text
+    up through token n-1. Binary search finds the smallest n where the
+    decoded prefix length exceeds target_char.
+    """
+    lo, hi = 0, len(token_ids) - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        prefix_len = len(tokenizer.decode(token_ids[:mid + 1], skip_special_tokens=False))
+        if prefix_len <= target_char:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
 
 
 def resolve_char_regions_to_tokens(

@@ -17,7 +17,7 @@ from typing import Dict, List
 import numpy as np
 from PIL import Image, ImageDraw
 
-from ..constants import DISPLAY_PHASES
+from ..constants import display_phases
 from ._shared import (
     BG_COLOR,
     CHATML_COLOR,
@@ -102,17 +102,12 @@ def render_single_layer_frame(
     font_phase = get_font(11)
     phase = "Unknown"
     phase_color = "#888888"
-    for label, l_start, l_end in DISPLAY_PHASES:
+    phases = display_phases(num_layers)
+    phase_colors = ["#78cdc4", "#888888", "#ff6b6b", "#ffe66d"]
+    for i, (label, l_start, l_end) in enumerate(phases):
         if l_start <= layer <= l_end:
             phase = label
-            if l_start == 0:
-                phase_color = "#78cdc4"
-            elif l_start <= 8:
-                phase_color = "#888888"
-            elif l_start <= 32:
-                phase_color = "#ff6b6b"
-            else:
-                phase_color = "#ffe66d"
+            phase_color = phase_colors[min(i, len(phase_colors) - 1)]
             break
     draw.text((LEFT_MARGIN + 160, 12), phase, fill=phase_color, font=font_phase)
 

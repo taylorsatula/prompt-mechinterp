@@ -74,11 +74,17 @@ With accelerate's device mapping, user hooks fire AFTER `AlignDevicesHook.post_f
 ### `attn_implementation="eager"` (mandatory)
 Flash attention doesn't materialize the attention matrix. Eager attention always does, regardless of `output_attentions` flag.
 
-### Piecewise tokenization
-Tokenize each chat template piece independently, validate against `apply_chat_template()`. Avoids `(0,0)` offset problem with special tokens.
+### Piece boundary detection via full-sequence decode + bisect
+`build_chat_tokens` decodes the full token sequence with `tokenizer.decode()`, finds content strings via `str.find()`, then maps char positions to token indices via binary search with progressive prefix decoding. This handles SentencePiece leading-space markers, BPE boundary effects at template junctions, and models that merge system into user (Gemma).
 
-### Char-to-token via cumulative decode
-Subsequence matching fails for large regions due to BPE boundary effects. Cumulative character offset mapping via `tokenizer.decode()` is robust.
+### System role fallback
+Models that don't support system role (Gemma family) are handled automatically: the engine catches the template error, merges system content into the first user message with a `\n` separator, and re-applies the template. Region boundaries remain correct because the content strings are still findable in the decoded text.
+
+### Char-to-token via cumulative decode (sub-regions)
+Within located pieces, `resolve_char_regions_to_tokens` uses cumulative character offset mapping via per-token `tokenizer.decode()` for sub-region resolution. This is robust for intra-piece mapping where tokens are already sliced from the piece boundary.
+
+### Dynamic phase scaling
+Display phases and analysis phases scale proportionally to any layer count via `display_phases(num_layers)` and `analysis_phases(num_layers)`. No hardcoded layer numbers in renderers.
 
 ### Region annotation via JSON config
 Users define regions in a JSON file with marker-based, regex-based, or character-range boundaries. No hardcoded markers or delimiters.

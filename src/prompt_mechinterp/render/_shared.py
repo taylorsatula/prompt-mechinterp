@@ -267,16 +267,21 @@ def colormap_lookup(
 
 
 def parse_layer_spec(spec: str, num_layers: int = 64) -> List[int]:
-    """Parse layer specification: '60-63', 'all', '48', '0,16,32,48,60-63'."""
-    if spec.strip().lower() == "all":
+    """Parse layer specification: 'final', 'all', '48', '0,16,32,48,60-63'."""
+    spec = spec.strip().lower()
+    if spec == "all":
         return list(range(num_layers))
+    if spec == "final":
+        from ..constants import FINAL_LAYERS
+        start = max(0, num_layers - FINAL_LAYERS)
+        return list(range(start, num_layers))
 
     layers = set()
     for part in spec.split(","):
         part = part.strip()
         if "-" in part:
-            start, end = part.split("-", 1)
-            layers.update(range(int(start), int(end) + 1))
+            s, e = part.split("-", 1)
+            layers.update(range(int(s), int(e) + 1))
         else:
             layers.add(int(part))
     return sorted(layers)

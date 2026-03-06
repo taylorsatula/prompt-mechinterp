@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.png
 *.gif
+!docs/images/*.png
 *.egg-info/
 dist/
 build/

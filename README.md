@@ -234,12 +234,42 @@ infra/
     vastai_setup.sh       # GPU box bootstrap script
 ```
 
+## Why this exists
+
+Prompt engineering is typically done by feel — you tweak wording, reorder sections, adjust emphasis, then eyeball the outputs to see if they "look right." But this approach is subjective and fragile. A change that seems to improve one case might silently degrade others, and you have no way to know without exhaustive manual testing.
+
+This toolkit replaces guesswork with empirical measurement. By capturing exactly how the model distributes attention across every region of your prompt at every layer, you can see with certainty whether a change is helping or harming — and *where* in the model's processing the effect occurs.
+
+### Before and after
+
+The cooking curves below show the same prompt before and after iterative tuning. The "before" curve is from a first-draft prompt run through the pipeline — note how `current_message` attention is scattered and competes with `stored_passages` through the mid-layers with no clear resolution:
+
+![Before tuning — attention is unfocused](docs/images/cooking_before.png)
+
+After several rounds of restructuring guided by the pipeline's output — adjusting region boundaries, reordering task sections, adding structural markers — attention converges cleanly. Each region peaks at a distinct processing phase, `current_message` dominates the focus layers, and the output formatting layers show clear separation:
+
+![After tuning — attention is focused and phase-separated](docs/images/cooking_after.png)
+
+Every change in that tuning process was validated by re-running the pipeline and comparing curves, rather than relying on whether the model's text output "seemed better."
+
 ## Model support
 
 The engine auto-discovers model architecture from any HuggingFace decoder-only transformer:
 - Reads layer count, head counts, hidden size, vocab size from `model.config`
 - Walks the module tree to find attention submodules, LM head, and final norm
-- Tested with: Llama, Qwen, Mistral, Gemma, GPT-NeoX families
+- Phase annotations and layer-dependent rendering scale automatically to any layer count
+
+### Verified model families
+
+| Family | Example model | Chat template | Layers | Notes |
+|--------|--------------|---------------|--------|-------|
+| **Qwen** | Qwen3-32B | ChatML | 64 | Full support |
+| **Llama 3** | Llama-3.1-8B-Instruct | Llama 3 format | 32 | Full support |
+| **Mistral** | Mistral-7B-Instruct-v0.1 | `[INST]` format | 32 | Full support |
+| **Gemma** | Gemma-2-9B-IT | Gemma format | 42 | System role auto-merged into user |
+| **GPT (OpenAI)** | gpt-oss-20b | OpenAI format | 24 | Full support (MoE) |
+
+Models without a system role (Gemma) are handled automatically — the engine merges system content into the first user message. Any HuggingFace model with a chat template and eager attention support should work.
 
 Requirements: `attn_implementation="eager"` (flash attention doesn't materialize the attention matrix).
 

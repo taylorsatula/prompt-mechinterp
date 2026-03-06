@@ -30,16 +30,26 @@ self_attn submodule has no accelerate hooks, so user hooks fire immediately.
 ## BPE Boundary Effects in Region Resolution
 
 **Symptom**: Region token subsequence matching fails for regions >100 tokens.
-Only 1/11 system prompt regions matched.
+Only 1/11 system prompt regions matched. Also affects piece-level boundary
+detection for models like Mistral whose chat templates change BPE boundaries
+at content/template junctions.
 
 **Root cause**: BPE tokenization of a substring produces different tokens than
 BPE tokenization of the same text within a longer context. Token boundaries
 shift when surrounding context changes, so independently-tokenized region text
 doesn't appear as a contiguous subsequence in the full-context tokenization.
+SentencePiece tokenizers additionally insert leading-space markers (`▁`) that
+cause per-token `decode([tid])` concatenation to differ from full-sequence
+`decode(all_ids)`.
 
-**Solution**: Use cumulative character offset mapping via `tokenizer.decode()`.
-Decode each token, accumulate character lengths, use binary search for
-char-to-token resolution. This works from the actual token sequence.
+**Solution** (piece boundaries): Decode the full token sequence with
+`tokenizer.decode(reference_ids)`, find content strings via `str.find()`,
+then map char positions to token indices via binary search with progressive
+prefix decoding (`_char_to_token_bisect`).
+
+**Solution** (sub-regions within pieces): Use cumulative character offset
+mapping via per-token `tokenizer.decode([tid])`. This works within a single
+piece where tokens are already sliced from known boundaries.
 
 ## (0,0) Offset Mapping
 
@@ -49,8 +59,23 @@ making them invisible to character-to-token mapping.
 **Root cause**: HuggingFace's offset mapping doesn't track special tokens
 (they have no character-level source text).
 
-**Solution**: Piecewise tokenization avoids this entirely by locating content
-pieces via subsequence matching rather than relying on offset mapping.
+**Solution**: The full-sequence decode + bisect approach avoids this entirely.
+Content strings are found in the decoded text (which includes special token
+text representations), and char-to-token mapping uses progressive prefix
+decoding rather than HF offset mapping.
+
+## Models Without System Role
+
+**Symptom**: `jinja2.exceptions.TemplateError: System role not supported` when
+running Gemma or similar models.
+
+**Root cause**: Some model families (Gemma) intentionally omit system role
+support from their chat templates.
+
+**Solution**: The engine catches this error and automatically merges system
+content into the first user message with a `\n` separator. Region boundaries
+remain correct because the system prompt text is still findable as a substring
+in the merged content.
 
 ## Recency Gradient Catastrophe
 

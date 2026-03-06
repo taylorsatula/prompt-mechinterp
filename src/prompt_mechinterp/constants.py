@@ -9,23 +9,43 @@ and must come from model auto-discovery (engine/model_adapter.py), not constants
 FINAL_LAYERS = 4
 
 # Display phases — 4-phase model for chart labels and phase annotations.
-# Empirically derived from Qwen3-32B cooking curves; boundaries are approximate
-# and may shift for models with different layer counts.
-DISPLAY_PHASES = [
-    ("Rules absorbed", 0, 8),
-    ("Internal computation", 8, 32),
-    ("Focus narrows", 32, 48),
-    ("Output formatting", 48, 63),
+# Proportions empirically derived from Qwen3-32B cooking curves.
+# Scaled to any layer count via display_phases(num_layers).
+_DISPLAY_PHASE_FRACTIONS = [
+    ("Rules absorbed", 0.0, 0.125),
+    ("Internal computation", 0.125, 0.5),
+    ("Focus narrows", 0.5, 0.75),
+    ("Output formatting", 0.75, 1.0),
 ]
 
+
+def display_phases(num_layers: int) -> list:
+    """Return display phases scaled to the given layer count."""
+    last = num_layers - 1
+    return [
+        (label, round(start * last), round(end * last))
+        for label, start, end in _DISPLAY_PHASE_FRACTIONS
+    ]
+
+
 # Analysis phases — 5-phase model for detailed per-phase metrics.
-ANALYSIS_PHASES = {
-    "P1_broad_read": (0, 6),
-    "P2_absorption": (7, 11),
-    "P3_compression": (12, 31),
-    "P4_reengagement": (32, 47),
-    "P5_output_prep": (48, 63),
+# Proportions scaled to any layer count via analysis_phases(num_layers).
+_ANALYSIS_PHASE_FRACTIONS = {
+    "P1_broad_read": (0.0, 0.094),
+    "P2_absorption": (0.109, 0.172),
+    "P3_compression": (0.188, 0.484),
+    "P4_reengagement": (0.5, 0.734),
+    "P5_output_prep": (0.75, 1.0),
 }
+
+
+def analysis_phases(num_layers: int) -> dict:
+    """Return analysis phases scaled to the given layer count."""
+    last = num_layers - 1
+    return {
+        name: (round(start * last), round(end * last))
+        for name, (start, end) in _ANALYSIS_PHASE_FRACTIONS.items()
+    }
 
 # Container regions that should never be plotted as individual curves.
 # These are structural groupings, not meaningful attention targets.

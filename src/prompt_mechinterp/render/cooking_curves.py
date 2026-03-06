@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from PIL import Image, ImageDraw
 
-from ..constants import DISPLAY_PHASES, SKIP_REGIONS, DEFAULT_DISPLAY_REGIONS
+from ..constants import display_phases, SKIP_REGIONS, DEFAULT_DISPLAY_REGIONS
 from ._shared import (
     BG_COLOR,
     GRID_COLOR,
@@ -179,9 +179,7 @@ def render_cooking_curves(
     )
 
     # Phase annotations
-    for label, l_start, l_end in DISPLAY_PHASES:
-        if l_start >= n_layers:
-            break
+    for label, l_start, l_end in display_phases(n_layers):
         l_end_clamped = min(l_end, n_layers - 1)
         px_start, _ = to_px(l_start, 0)
         px_end, _ = to_px(l_end_clamped, 0)

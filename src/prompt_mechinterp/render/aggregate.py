@@ -17,7 +17,7 @@ import numpy as np
 
 from PIL import Image, ImageDraw
 
-from ..constants import DISPLAY_PHASES, SKIP_REGIONS
+from ..constants import display_phases, SKIP_REGIONS
 from ._shared import BG_COLOR, REGION_COLORS, get_font
 from .loaders import load_variant_curves
 
@@ -76,9 +76,7 @@ def render_single_variant(
     )
 
     # Phase labels
-    for label, start, end in DISPLAY_PHASES:
-        if start >= n_layers:
-            break
+    for label, start, end in display_phases(n_layers):
         end_c = min(end, n_layers - 1)
         x_start = left + int(start / (n_layers - 1) * plot_w)
         x_end = left + int(end_c / (n_layers - 1) * plot_w)
@@ -276,9 +274,7 @@ def render_comparison(
         font=font_sm,
     )
 
-    for label, start, end in DISPLAY_PHASES:
-        if start >= n_layers:
-            break
+    for label, start, end in display_phases(n_layers):
         end_c = min(end, n_layers - 1)
         x_start = left + int(start / (n_layers - 1) * plot_w)
         x_end = left + int(end_c / (n_layers - 1) * plot_w)

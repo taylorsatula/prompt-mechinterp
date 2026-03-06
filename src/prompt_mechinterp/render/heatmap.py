@@ -321,8 +321,8 @@ def main():
         "--position", default="terminal", help="Query position (default: terminal)"
     )
     parser.add_argument(
-        "--layers", default="60-63",
-        help="Layer range to average: '60-63' (default), 'all', '48'",
+        "--layers", default="final",
+        help="Layer range to average: 'final' (default, last N layers), 'all', '48', '60-63'",
     )
     parser.add_argument(
         "--smoothing", type=float, default=0.0,
