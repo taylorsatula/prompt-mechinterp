@@ -242,11 +242,13 @@ This toolkit replaces guesswork with empirical measurement. By capturing exactly
 
 ### Before and after
 
-The cooking curves below show the same prompt before and after iterative tuning. The "before" curve is from a first-draft prompt run through the pipeline — note how `current_message` attention is scattered and competes with `stored_passages` through the mid-layers with no clear resolution:
+The cooking curves below show the same prompt before and after iterative tuning (both per-region normalized to 0–1 for direct comparison).
+
+The "before" curve is from a first-draft prompt. Several regions show artifact peaks at L0 from near-zero values. `current_message` has a narrow, isolated spike around L42–45 but no sustained dominance. `task_entity` unexpectedly takes over the output formatting layers (L56+), and the mid-layers are noisy with no clear phase differentiation:
 
 ![Before tuning — attention is unfocused](docs/images/cooking_before.png)
 
-After several rounds of restructuring guided by the pipeline's output — adjusting region boundaries, reordering task sections, adding structural markers — attention converges cleanly. Each region peaks at a distinct processing phase, `current_message` dominates the focus layers, and the output formatting layers show clear separation:
+After several rounds of restructuring guided by the pipeline's output — adjusting region boundaries, reordering task sections, adding structural markers — the curves show clean phase progression. `directive` and `conversation_turns` peak first (L3), rules regions differentiate through the early-mid layers, `current_message` sustains dominance through the focus layers (L40–50), and `output_format` cleanly takes over the final layers. The mid-layer oscillations are structured rather than noisy:
 
 ![After tuning — attention is focused and phase-separated](docs/images/cooking_after.png)
 
