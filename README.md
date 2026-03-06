@@ -111,6 +111,94 @@ python -m prompt_mechinterp.analysis.report \
     --output-dir reports/
 ```
 
+## Input formats
+
+The pipeline takes three input files. All content is model-agnostic — use any system prompt, any conversation structure, any region definitions.
+
+### `system_prompt.txt`
+
+Plain text file containing the full system prompt. This is the exact text that will be inserted into the chat template's system role.
+
+### `conversations.json`
+
+Array of conversation objects. Each object represents one test case for MI analysis.
+
+```json
+[
+  {
+    "id": "case_0",
+    "user_message": "What's the weather like in Tokyo?",
+    "response": "Tokyo is currently experiencing mild temperatures around 18°C."
+  },
+  {
+    "id": "case_1",
+    "user_message": "Tell me more about the forecast.",
+    "response": "The week ahead shows increasing cloud cover with rain expected Thursday."
+  }
+]
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | yes | Unique case identifier (used for output filenames) |
+| `user_message` | yes | The user turn to analyze |
+| `response` | yes | The assistant response (can be empty string `""` if analyzing pre-response attention) |
+| `user_regions` | no | Per-case region defs for user message (overrides global `user_message.regions`) |
+| `response_regions` | no | Per-case region defs for response (overrides global `response.regions`) |
+
+Where conversations come from is up to you — export from a chat database, hand-write them, pull from logs, generate synthetically. The pipeline doesn't care about the source, only the format.
+
+### `regions.json`
+
+Defines named text spans to track attention over. Regions are matched against the assembled prompt text at character level, then resolved to token positions.
+
+```json
+{
+  "system_prompt": {
+    "regions": [
+      {"name": "rules", "start_marker": "## Rules", "end_marker": "## Examples"},
+      {"name": "examples", "start_marker": "## Examples", "end_marker": null}
+    ]
+  },
+  "user_message": {
+    "regions": [
+      {"name": "context", "start_marker": "Previous:", "end_marker": "Current:"},
+      {"name": "current", "start_marker": "Current:", "end_marker": null}
+    ]
+  },
+  "response": {
+    "regions": [
+      {"name": "answer", "start_pattern": "^\\w", "end_pattern": null}
+    ]
+  },
+  "query_positions": {
+    "terminal": "last_token",
+    "decision": {"after_text": "Answer:"}
+  },
+  "tracked_tokens": ["<", "yes", "no"]
+}
+```
+
+**Region detection strategies** — each region def needs a `name` and one of these boundary strategies:
+
+| Strategy | Fields | Use when |
+|----------|--------|----------|
+| Marker | `start_marker`, `end_marker` | Boundaries are literal text strings in the prompt |
+| Regex | `start_pattern`, `end_pattern` | Boundaries need pattern matching |
+| Character range | `start_char`, `end_char` | You know exact character offsets |
+
+Set `end_marker`, `end_pattern`, or `end_char` to `null` to extend to end of text. Regions can also be nested by including a `regions` array inside a region def.
+
+**Query positions** define where in the token sequence to probe attention and logit lens:
+
+| Value | Meaning |
+|-------|---------|
+| `"last_token"` | Last token of the user message |
+| `{"after_text": "..."}` | First non-whitespace token after the specified text in the response |
+| `{"at_text": "..."}` | Token at the specified text in the response |
+
+**Tracked tokens** are specific tokens to monitor rank and probability for across all layers in the logit lens output.
+
 ## Package structure
 
 ```
