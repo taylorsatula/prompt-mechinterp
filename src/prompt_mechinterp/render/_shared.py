@@ -193,12 +193,17 @@ def get_colormap(name: str) -> np.ndarray:
 # ============================================================================
 
 def gaussian_smooth(values: np.ndarray, sigma: float) -> np.ndarray:
-    """1D Gaussian smoothing via convolution."""
+    """1D Gaussian smoothing via convolution. Output length always equals input."""
     if sigma <= 0:
         return values
     kernel_size = int(sigma * 6) | 1  # ensure odd
     if kernel_size < 3:
         kernel_size = 3
+    # Cap kernel to input length (keep odd) so output length = input length
+    if kernel_size > len(values):
+        kernel_size = len(values)
+        if kernel_size % 2 == 0:
+            kernel_size = max(1, kernel_size - 1)
     x = np.arange(kernel_size) - kernel_size // 2
     kernel = np.exp(-0.5 * (x / sigma) ** 2)
     kernel /= kernel.sum()
@@ -315,7 +320,7 @@ def sanitize_token(label: str) -> str:
 def is_newline_token(label: str) -> bool:
     """Check if a token represents a line break."""
     stripped = label.strip("\r")
-    return stripped == "\n" or stripped == "\r\n"
+    return stripped == "\n"
 
 
 # ============================================================================

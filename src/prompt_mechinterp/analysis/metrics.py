@@ -93,7 +93,7 @@ def compute_region_attention_per_layer(
     tok_start = region["tok_start"]
     tok_end = region["tok_end"]
     n_tokens = region.get("n_tokens", tok_end - tok_start)
-    if n_tokens == 0:
+    if n_tokens <= 0:
         return np.zeros(num_layers)
 
     per_layer = (

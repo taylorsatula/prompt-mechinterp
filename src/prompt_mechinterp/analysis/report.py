@@ -49,23 +49,24 @@ def _detect_num_layers(samples: List[dict]) -> int:
     return 64
 
 
-def _classify_story(peak_layer: int, ratio: float) -> str:
-    if peak_layer <= 2:
+def _classify_story(peak_layer: int, ratio: float, num_layers: int = 64) -> str:
+    frac = peak_layer / max(1, num_layers - 1)
+    if frac <= 0.035:
         if ratio > 10:
             return "Cooked first, strong fade"
         elif ratio > 3:
             return "Cooked first"
         else:
             return "Early read"
-    elif peak_layer <= 6:
+    elif frac <= 0.10:
         return f"Cooked by L{peak_layer}"
-    elif peak_layer <= 11:
+    elif frac <= 0.18:
         return "Absorption phase"
-    elif peak_layer <= 31:
+    elif frac <= 0.50:
         return "Deep compression"
-    elif peak_layer <= 47:
+    elif frac <= 0.75:
         return "Mid-phase peak"
-    elif peak_layer <= 55:
+    elif frac <= 0.88:
         return "Output prep phase"
     else:
         if ratio < 2:
@@ -101,7 +102,7 @@ def compute_cooking_table(
             if stats["terminal_value"] > 0
             else float("inf")
         )
-        story = _classify_story(stats["peak_layer"], ratio)
+        story = _classify_story(stats["peak_layer"], ratio, num_layers)
 
         region_stats[region_name] = {
             **stats,

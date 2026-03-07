@@ -76,9 +76,12 @@ def table_terminal_attention(
     variants: Dict[str, List[dict]],
     regions: List[str],
     position: str,
+    num_layers: int = 64,
 ) -> None:
     """Per-region terminal attention table."""
-    print_header(f"Per-Region Terminal Attention ({position}, L{64-FINAL_LAYERS}-{63} avg)")
+    layer_start = num_layers - FINAL_LAYERS
+    layer_end = num_layers - 1
+    print_header(f"Per-Region Terminal Attention ({position}, L{layer_start}-{layer_end} avg)")
 
     first_label = next(iter(variants))
     baseline_vals: Dict[str, float] = {}
@@ -116,10 +119,13 @@ def table_region_ratios(
     variants: Dict[str, List[dict]],
     ratio_pairs: List[Tuple[str, str]],
     position: str,
+    num_layers: int = 64,
 ) -> None:
     """Region ratio table (e.g., context bleed)."""
+    layer_start = num_layers - FINAL_LAYERS
+    layer_end = num_layers - 1
     for region_a, region_b in ratio_pairs:
-        print_header(f"Region Ratio: {region_a} / {region_b} ({position}, L{64-FINAL_LAYERS}-{63} avg)")
+        print_header(f"Region Ratio: {region_a} / {region_b} ({position}, L{layer_start}-{layer_end} avg)")
         print(f"  Lower = less {region_a} relative to {region_b}.")
         print()
 
@@ -143,9 +149,12 @@ def table_per_token_density(
     variants: Dict[str, List[dict]],
     regions: List[str],
     position: str,
+    num_layers: int = 64,
 ) -> None:
     """Per-token attention density table."""
-    print_header(f"Per-Token Attention Density ({position}, L{64-FINAL_LAYERS}-{63} avg)")
+    layer_start = num_layers - FINAL_LAYERS
+    layer_end = num_layers - 1
+    print_header(f"Per-Token Attention Density ({position}, L{layer_start}-{layer_end} avg)")
     print(f"  Density = attention_weight / n_tokens * 1000. Higher = more attention per token.")
     print()
 
@@ -320,14 +329,14 @@ def main():
 
     # Print tables
     if show_all or "terminal" in metrics:
-        table_terminal_attention(variants, regions, args.position)
+        table_terminal_attention(variants, regions, args.position, num_layers)
 
     if show_all or "density" in metrics:
-        table_per_token_density(variants, regions, args.position)
+        table_per_token_density(variants, regions, args.position, num_layers)
 
     if show_all or "ratios" in metrics:
         if ratio_pairs:
-            table_region_ratios(variants, ratio_pairs, args.position)
+            table_region_ratios(variants, ratio_pairs, args.position, num_layers)
 
     if show_all or "logit_lens" in metrics:
         table_logit_lens(variants, args.logit_lens_tokens, args.position, num_layers)

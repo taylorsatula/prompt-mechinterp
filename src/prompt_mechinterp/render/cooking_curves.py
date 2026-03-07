@@ -63,7 +63,8 @@ def compute_region_trajectories(
         curve = np.zeros(n_layers)
         for i, layer in enumerate(layers_sorted):
             w = layer_weights[layer]
-            curve[i] = np.mean(w[ts:te])
+            if te <= len(w):
+                curve[i] = np.mean(w[ts:te])
         trajectories[region] = curve
 
     return trajectories
